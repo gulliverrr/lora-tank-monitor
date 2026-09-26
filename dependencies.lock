@@ -1,0 +1,48 @@
+dependencies:
+  chill-sam/ssd1306:
+    component_hash: 6be33faa92d913d198ef61f70d58708c4cebd5c93e74cf3e2a43446877cf04f6
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32s2
+    - esp32s3
+    - esp32c3
+    version: 1.1.2
+  cube32esp/xpowerslib:
+    component_hash: 2514666cb8528bfd155d57b8e9f8b7eea2f8d5ceec8de1a937a063106d8c266e
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.3.3
+  idf:
+    source:
+      type: idf
+    version: 5.5.2
+  jgromes/radiolib:
+    component_hash: 024269f750d7eb181d07bd57ccec5e5e4e276dbb262d681a6501c8e2244e80f0
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 7.7.1
+direct_dependencies:
+- chill-sam/ssd1306
+- cube32esp/xpowerslib
+- idf
+- jgromes/radiolib
+manifest_hash: d0aac6dacd74d68ab695262316a90a1c88a8561a1f88bea22dc693d8209f5ffc
+target: esp32
+version: 2.0.0
