@@ -28,10 +28,26 @@ to ground. This produces approximately 3.0 V from a 5.0 V echo and stays below
 3.3 V at a 5.25 V USB supply. Measure the assembled divider before connecting
 GPIO25. Never connect the 5 V ECHO output directly to ESP32.
 
-The AXP2101 LDO outputs cannot generate 5 V. Battery operation therefore needs
-a regulated boost converter with a low-quiescent-current enable or load switch.
-GPIO14 is reserved as the future sensor-power enable. USB VBUS may supply a
-bench test, but it is not the battery-powered production supply.
+For battery operation at 5 V, use a regulated boost converter with an enable
+input. Connect battery input to the converter, converter 5 V output to sensor
+VCC, and converter ground/sensor ground/T-Beam ground together. Connect GPIO14
+to the converter EN input (through a divider only if its EN pin requires a
+lower voltage); add a 100 kOhm EN-to-ground pull-down so the converter defaults
+off during reset and deep sleep. GPIO14 is a control signal only: do not power
+the sensor directly from the GPIO. Switch VCC, not GND, so TRIG/ECHO retain a
+common reference and cannot back-power the sensor through signal pins.
+
+If the specific sensor is verified to operate correctly from the T-Beam's 3.3 V
+rail, the boost converter can be omitted and a 3.3 V load switch used instead;
+its input is 3.3 V, output is sensor VCC, EN is GPIO14 with a pull-down, and all
+grounds remain common. The firmware's previous 5 V divider values are only
+appropriate for a 5 V ECHO high level; re-check the divider if changing supply.
+USB VBUS is suitable for bench tests, not battery-powered production.
+
+The onboard red CHG indicator is associated with the PMU/charging circuit. The
+firmware requests the AXP2101 charging LED off, but some board revisions wire
+the indicator directly to charger status; in that case it follows charging
+state and cannot be gated by an ESP32 GPIO without a hardware modification.
 
 For a one-shot bench measurement, power the sensor, hold the T-Beam middle
 button, and reset the board. The firmware emits one 12 microsecond trigger and

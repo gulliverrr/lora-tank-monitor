@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 
@@ -41,6 +42,7 @@ std::array<std::int64_t, 10> rx_intervals_us{};
 std::size_t rx_interval_count{0};
 std::size_t rx_interval_next{0};
 bool remeasure_requested{false};
+std::atomic<bool> idle_timeout_elapsed{false};
 
 bool draw_line(int line, const char* text)
 {
@@ -149,10 +151,11 @@ void draw_diagnostics_page(std::uint8_t page)
 
 void diagnostics_task(void*)
 {
-    constexpr std::int64_t kDisplayTimeoutUs = 60LL * 1000LL * 1000LL;
+    constexpr std::int64_t kDisplayTimeoutUs = 10LL * 1000LL * 1000LL;
     std::uint8_t page = 0;
     bool previous_pressed = false;
     bool long_press_triggered = false;
+    bool woke_display_on_press = false;
     std::int64_t pressed_since_us = 0;
     std::int64_t deadline = esp_timer_get_time() + kDisplayTimeoutUs;
     std::int64_t last_render_us = 0;
@@ -162,6 +165,12 @@ void diagnostics_task(void*)
         if (pressed && !previous_pressed) {
             pressed_since_us = esp_timer_get_time();
             long_press_triggered = false;
+            woke_display_on_press = deadline == 0;
+            if (woke_display_on_press) {
+                deadline = esp_timer_get_time() + kDisplayTimeoutUs;
+                draw_diagnostics_page(page);
+                last_render_us = esp_timer_get_time();
+            }
         }
         if (pressed && !long_press_triggered && pressed_since_us != 0 &&
             esp_timer_get_time() - pressed_since_us >= 1500000LL &&
@@ -171,12 +180,13 @@ void diagnostics_task(void*)
             deadline = esp_timer_get_time() + kDisplayTimeoutUs;
         }
         if (!pressed && previous_pressed) {
-            if (!long_press_triggered) {
+            if (!long_press_triggered && !woke_display_on_press) {
                 const std::uint8_t page_count = diagnostics.configuration.device.role == config::DeviceRole::Receiver ? 3U : 2U;
                 page = static_cast<std::uint8_t>((page + 1U) % page_count);
                 deadline = esp_timer_get_time() + kDisplayTimeoutUs;
                 draw_diagnostics_page(page);
             }
+            woke_display_on_press = false;
             pressed_since_us = 0;
         }
         previous_pressed = pressed;
@@ -184,6 +194,7 @@ void diagnostics_task(void*)
             static_cast<void>(ssd1306_clear(display));
             static_cast<void>(ssd1306_display(display));
             deadline = 0;
+            idle_timeout_elapsed.store(true);
         }
         if (deadline != 0 && esp_timer_get_time() - last_render_us >= 1000000LL) {
             draw_diagnostics_page(page);
@@ -301,6 +312,7 @@ bool start_diagnostics(
 {
     if (!initialize()) return false;
     diagnostics = {board_status, power_status, battery_estimate, configuration};
+    idle_timeout_elapsed.store(false);
     return xTaskCreate(diagnostics_task, "oled_diagnostics", 3072, nullptr, 1, nullptr) == pdPASS;
 }
 
@@ -336,6 +348,11 @@ bool take_remeasure_request()
     const bool requested = remeasure_requested;
     remeasure_requested = false;
     return requested;
+}
+
+bool diagnostics_idle_timeout_elapsed()
+{
+    return idle_timeout_elapsed.load();
 }
 
 void blank()

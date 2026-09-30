@@ -321,10 +321,17 @@ FormResult parse_config_form(
         result.error = FormError::InvalidValue;
         return result;
     }
-    const bool valid_role_settings = value.device.role == config::DeviceRole::Transmitter
-        ? parse_tank(form, value.tank)
-        : form.text("wifi_ssid", value.wifi.ssid) && form.text("wifi_password", value.wifi.password, true) &&
-            parse_blynk(form, value.blynk);
+    bool valid_role_settings = false;
+    if (value.device.role == config::DeviceRole::Transmitter) {
+        std::uint32_t interval_minutes = 30;
+        valid_role_settings = parse_tank(form, value.tank) &&
+            form.integer("measurement_interval_minutes", interval_minutes) &&
+            interval_minutes >= 1 && interval_minutes <= 1440;
+        if (valid_role_settings) value.sensor.measurement_interval_seconds = interval_minutes * 60U;
+    } else {
+        valid_role_settings = form.text("wifi_ssid", value.wifi.ssid) &&
+            form.text("wifi_password", value.wifi.password, true) && parse_blynk(form, value.blynk);
+    }
     if (!valid_role_settings) {
         result.error = FormError::InvalidValue;
         return result;

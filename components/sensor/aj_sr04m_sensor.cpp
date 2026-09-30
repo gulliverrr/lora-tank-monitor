@@ -50,6 +50,24 @@ void IRAM_ATTR echo_interrupt(void*)
 
 }  // namespace
 
+bool AjSr04mSensor::set_power_enabled(bool enabled)
+{
+    const gpio_num_t sensor_power_enable = board::tbeam_v1_2::kSensorPowerEnable;
+    const gpio_config_t configuration{
+        .pin_bit_mask = 1ULL << static_cast<unsigned int>(sensor_power_enable),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    if (gpio_config(&configuration) != ESP_OK ||
+        gpio_set_level(sensor_power_enable, enabled ? 1 : 0) != ESP_OK) {
+        ESP_LOGE(kLogTag, "Failed to set sensor-power GPIO14 to %u", enabled ? 1U : 0U);
+        return false;
+    }
+    return true;
+}
+
 bool AjSr04mSensor::initialize()
 {
     if (initialized_) {

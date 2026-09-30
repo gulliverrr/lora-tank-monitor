@@ -36,10 +36,19 @@ bool initialize_power_manager()
         ESP_LOGE(kLogTag, "Failed to disable unused GPS rail");
         return false;
     }
+    power.setChargingLedMode(XPOWERS_CHG_LED_OFF);
 
     initialized = true;
     ESP_LOGI(kLogTag, "AXP2101 chip ID: 0x%02x", power.getChipID());
     return true;
+}
+
+bool set_radio_rail_enabled(bool enabled)
+{
+    if (!initialize_power_manager()) return false;
+    const bool changed = enabled ? power.enableALDO2() : power.disableALDO2();
+    if (changed) ESP_LOGI(kLogTag, "LoRa rail %s", enabled ? "enabled" : "disabled");
+    return changed;
 }
 
 PowerStatus read_power_status()

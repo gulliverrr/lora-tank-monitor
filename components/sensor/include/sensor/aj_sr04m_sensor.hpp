@@ -25,6 +25,7 @@ struct SensorReading {
 
 class AjSr04mSensor {
 public:
+    [[nodiscard]] bool set_power_enabled(bool enabled);
     [[nodiscard]] bool initialize();
     [[nodiscard]] SensorReading measure(std::uint32_t timeout_microseconds);
 

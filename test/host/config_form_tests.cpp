@@ -22,7 +22,7 @@ std::string valid_form()
         "role=tx&display_enabled=1&display_timeout_s=30&long_press_ms=5000"
         "&wifi_ssid=&wifi_password=&hostname=tank-tx&wifi_retry_min_ms=1000&wifi_retry_max_ms=60000"
         "&radio_chip=sx1278&frequency_hz=433000000&bandwidth_hz=125000&spreading_factor=9&coding_rate=5&sync_word=18&preamble=8&tx_power=14&rx_timeout_ms=2000&tx_timeout_ms=5000"
-        "&sensor_bottom_cm=220&sensor_surface_cm=40&tank_capacity_litres=1000&volume_unit=litres&range_policy=report"
+        "&sensor_bottom_cm=220&sensor_surface_cm=40&tank_capacity_litres=1000&volume_unit=litres&range_policy=report&measurement_interval_minutes=30"
         "&trigger_timeout_us=40000&power_warmup_ms=1000&sample_count=3&inter_sample_ms=100&max_spread_cm=10&measurement_interval_s=1800&critical_interval_s=60&transmission_retries=2"
         "&alarm_low_enabled=0&alarm_low_direction=below&alarm_low_threshold=20&alarm_low_hysteresis=3&alarm_low_confirmations=3&alarm_low_reminder_s=3600"
         "&alarm_high_enabled=1&alarm_high_direction=above&alarm_high_threshold=95&alarm_high_hysteresis=3&alarm_high_confirmations=3&alarm_high_reminder_s=300"
@@ -44,6 +44,17 @@ int main()
     expect(parsed.configuration.device.node_id == 0xaabbccdd, "hardware node ID is not form-controlled");
         expect(parsed.configuration.tank.full_level_cm == 180.0,
             "two distances derive full water level");
+            expect(parsed.configuration.sensor.measurement_interval_seconds == 1800,
+                "measurement interval minutes persist as seconds");
+
+            std::string custom_interval = form;
+            const auto interval_field = custom_interval.find("measurement_interval_minutes=30");
+            custom_interval.replace(interval_field, std::strlen("measurement_interval_minutes=30"),
+                                    "measurement_interval_minutes=45");
+            const auto custom_interval_result = tank_monitor::provisioning::parse_config_form(
+                custom_interval.data(), custom_interval.size(), tank_monitor::config::default_config(), 0xaabbccdd);
+            expect(custom_interval_result.valid() && custom_interval_result.configuration.sensor.measurement_interval_seconds == 2700,
+                   "custom measurement period persists as seconds");
         expect(parsed.configuration.device.role == tank_monitor::config::DeviceRole::Transmitter,
             "transmitter form keeps TX-only configuration");
 

@@ -6,6 +6,7 @@
 #include "config/app_config.hpp"
 #include "config_validation/config_validator.hpp"
 #include "display/display_manager.hpp"
+#include "driver/gpio.h"
 #include "lora/lora_manager.hpp"
 #include "protocol/protocol_codec.hpp"
 #include "provisioning/provisioning_manager.hpp"
@@ -300,6 +301,10 @@ void receiver_task(void* argument)
 
 extern "C" void app_main()
 {
+    static_cast<void>(gpio_deep_sleep_hold_dis());
+    static_cast<void>(gpio_hold_dis(tank_monitor::board::tbeam_v1_2::kRadioReset));
+    static_cast<void>(gpio_hold_dis(tank_monitor::board::tbeam_v1_2::kSensorPowerEnable));
+
     esp_chip_info_t chip_info{};
     esp_chip_info(&chip_info);
 
@@ -320,6 +325,19 @@ extern "C" void app_main()
     if (!board_result.initialized) {
         ESP_LOGE(kLogTag, "Board self-test initialization failed");
     }
+    const bool woke_from_button = esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1;
+    const bool provisioning_requested = !validation.valid() ||
+        (board_result.user_button_pressed && !woke_from_button);
+    if (provisioning_requested) {
+        ESP_LOGI(kLogTag, "Provisioning mode active; transmitter deep sleep is disabled");
+    }
+    static tank_monitor::sensor::AjSr04mSensor sensor;
+    if (!provisioning_requested && configuration.device.role == tank_monitor::config::DeviceRole::Transmitter) {
+        static_cast<void>(sensor.set_power_enabled(false));
+    }
+    if (!provisioning_requested && !tank_monitor::board::set_radio_rail_enabled(true)) {
+        ESP_LOGE(kLogTag, "Failed to restore LoRa rail after wake");
+    }
     const auto power_status = tank_monitor::board::read_power_status();
     if (!power_status.initialized) {
         ESP_LOGE(kLogTag, "Power telemetry unavailable");
@@ -333,9 +351,6 @@ extern "C" void app_main()
                  battery_estimate.calibrated_voltage,
                  battery_estimate.percentage);
     }
-    const bool woke_from_button = esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1;
-    const bool provisioning_requested = !validation.valid() ||
-        (board_result.user_button_pressed && !woke_from_button);
     if (!provisioning_requested) {
         static tank_monitor::lora::LoRaManager lora;
         const auto radio_status = lora.initialize(
@@ -349,8 +364,7 @@ extern "C" void app_main()
             if (configuration.device.role == tank_monitor::config::DeviceRole::Transmitter) {
                 tank_monitor::sensor::SensorReading sensor_reading{};
                 tank_monitor::tank::TankMeasurement tank_measurement{};
-                static tank_monitor::sensor::AjSr04mSensor sensor;
-                if (sensor.initialize()) {
+                if (sensor.set_power_enabled(true) && sensor.initialize()) {
                     vTaskDelay(pdMS_TO_TICKS(configuration.sensor.power_warmup_ms));
                     sensor_reading = sensor.measure(configuration.sensor.trigger_timeout_us);
                     if (sensor_reading.valid()) {
@@ -359,6 +373,7 @@ extern "C" void app_main()
                             static_cast<double>(sensor_reading.distance_millimetres) / 10.0);
                     }
                 }
+                static_cast<void>(sensor.set_power_enabled(false));
                 tank_monitor::display::update_tx_telemetry({
                     .battery_millivolts = power_status.battery_millivolts,
                     .battery_percentage = battery_estimate.percentage,
@@ -380,6 +395,7 @@ extern "C" void app_main()
                     power_status.battery_millivolts,
                     sensor_reading,
                     tank_measurement);
+                static_cast<void>(sensor.set_power_enabled(false));
             } else {
                 static tank_monitor::blynk::BlynkManager blynk;
                 tank_monitor::blynk::BlynkManager* blynk_manager = nullptr;
@@ -435,12 +451,16 @@ extern "C" void app_main()
     }
     if (!provisioning_requested &&
         configuration.device.role == tank_monitor::config::DeviceRole::Transmitter) {
-        constexpr std::uint32_t kDisplayWindowMilliseconds = 60'000;
-        std::uint32_t elapsed = 0;
-        while (elapsed < kDisplayWindowMilliseconds) {
+        while (!tank_monitor::display::diagnostics_idle_timeout_elapsed()) {
             if (tank_monitor::display::take_remeasure_request() && active_tx_radio != nullptr &&
                 active_tx_sensor != nullptr && active_tx_configuration != nullptr && active_tx_store != nullptr) {
+                if (!active_tx_sensor->set_power_enabled(true)) {
+                    ESP_LOGE(kLogTag, "Failed to enable ultrasonic sensor on GPIO14");
+                    continue;
+                }
+                vTaskDelay(pdMS_TO_TICKS(active_tx_configuration->sensor.power_warmup_ms));
                 const auto sensor_reading = active_tx_sensor->measure(active_tx_configuration->sensor.trigger_timeout_us);
+                static_cast<void>(active_tx_sensor->set_power_enabled(false));
                 tank_monitor::tank::TankMeasurement tank_measurement{};
                 if (sensor_reading.valid()) {
                     tank_measurement = tank_monitor::tank::calculate(
@@ -459,9 +479,13 @@ extern "C" void app_main()
                                           sensor_reading, tank_measurement);
             }
             vTaskDelay(pdMS_TO_TICKS(100));
-            elapsed += 100;
         }
+        if (active_tx_sensor != nullptr) static_cast<void>(active_tx_sensor->set_power_enabled(false));
         tank_monitor::display::blank();
+        static_cast<void>(tank_monitor::board::set_radio_rail_enabled(false));
+        static_cast<void>(gpio_set_level(tank_monitor::board::tbeam_v1_2::kSensorPowerEnable, 0));
+        static_cast<void>(gpio_hold_en(tank_monitor::board::tbeam_v1_2::kSensorPowerEnable));
+        static_cast<void>(gpio_deep_sleep_hold_en());
         const std::uint64_t sleep_microseconds =
             static_cast<std::uint64_t>(configuration.sensor.measurement_interval_seconds) * 1'000'000ULL;
         if (esp_sleep_enable_timer_wakeup(sleep_microseconds) == ESP_OK &&

@@ -15,6 +15,7 @@ struct PowerStatus {
 };
 
 [[nodiscard]] bool initialize_power_manager();
+[[nodiscard]] bool set_radio_rail_enabled(bool enabled);
 [[nodiscard]] PowerStatus read_power_status();
 
 }  // namespace tank_monitor::board

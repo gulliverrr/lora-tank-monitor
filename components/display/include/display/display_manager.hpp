@@ -39,6 +39,7 @@ void update_tx_telemetry(const LiveTelemetry& telemetry);
 void update_rx_telemetry(const LiveTelemetry& telemetry);
 void update_network_health(const NetworkHealth& health);
 [[nodiscard]] bool take_remeasure_request();
+[[nodiscard]] bool diagnostics_idle_timeout_elapsed();
 void blank();
 
 }  // namespace tank_monitor::display
