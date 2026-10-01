@@ -245,12 +245,12 @@ bool write_payload(Writer& writer, const config::AppConfig& value)
     }
     for (const auto& peer : value.pairing.peers) {
         if (!(writer.boolean(peer.enabled) && writer.u64(peer.node_id) &&
-              writer.u32(peer.tank_id) && writer.string(peer.label))) {
+              writer.string(peer.label))) {
             return false;
         }
     }
-        if (!(writer.u32(value.tank.tank_id) && writer.string(value.tank.tank_name) &&
-            writer.floating(value.tank.capacity_litres) &&
+    if (!(writer.string(value.tank.tank_name) &&
+          writer.floating(value.tank.capacity_litres) &&
           writer.enumeration(value.tank.display_unit) && writer.enumeration(value.tank.volume_model) &&
           writer.floating(value.tank.volume_litres_per_centimetre) &&
           writer.floating(value.tank.sensor_reference_height_cm) &&
@@ -292,9 +292,10 @@ bool write_payload(Writer& writer, const config::AppConfig& value)
     return true;
 }
 
-bool read_payload(Reader& reader, config::AppConfig& value)
+bool read_payload(Reader& reader, config::AppConfig& value, bool legacy_tank_ids)
 {
     std::uint8_t transmit_power = 0;
+    std::uint32_t legacy_tank_id = 0;
     if (!(reader.boolean(value.configured) && reader.enumeration(value.device.role) &&
           reader.u64(value.device.node_id) && reader.boolean(value.device.display_enabled) &&
           reader.u32(value.device.display_timeout_seconds) &&
@@ -314,12 +315,12 @@ bool read_payload(Reader& reader, config::AppConfig& value)
     value.radio.transmit_power_dbm = static_cast<std::int8_t>(transmit_power);
     for (auto& peer : value.pairing.peers) {
         if (!(reader.boolean(peer.enabled) && reader.u64(peer.node_id) &&
-              reader.u32(peer.tank_id) && reader.string(peer.label))) {
+              (!legacy_tank_ids || reader.u32(legacy_tank_id)) && reader.string(peer.label))) {
             return false;
         }
     }
-        if (!(reader.u32(value.tank.tank_id) && reader.string(value.tank.tank_name) &&
-            reader.floating(value.tank.capacity_litres) &&
+    if (!((!legacy_tank_ids || reader.u32(legacy_tank_id)) && reader.string(value.tank.tank_name) &&
+          reader.floating(value.tank.capacity_litres) &&
           reader.enumeration(value.tank.display_unit) && reader.enumeration(value.tank.volume_model) &&
           reader.floating(value.tank.volume_litres_per_centimetre) &&
           reader.floating(value.tank.sensor_reference_height_cm) &&
@@ -427,7 +428,9 @@ DecodeResult decode(const std::uint8_t* data, std::size_t size)
         return result;
     }
     const std::uint32_t schema_version = read_u32(data + 8);
-    if (schema_version != config::kCurrentConfigVersion) {
+    // Schema 1 additionally stored a tank ID per peer and in the tank section.
+    const bool legacy_tank_ids = schema_version == 1;
+    if (schema_version != config::kCurrentConfigVersion && !legacy_tank_ids) {
         result.error = CodecError::UnsupportedSchemaVersion;
         return result;
     }
@@ -444,10 +447,10 @@ DecodeResult decode(const std::uint8_t* data, std::size_t size)
     }
 
     result.configuration = config::default_config();
-    result.configuration.schema_version = schema_version;
+    result.configuration.schema_version = config::kCurrentConfigVersion;
     result.configuration.generation = read_u32(data + 12);
     Reader payload(data + kHeaderSize, payload_size);
-    if (!read_payload(payload, result.configuration)) {
+    if (!read_payload(payload, result.configuration, legacy_tank_ids)) {
         result.error = CodecError::MalformedPayload;
     }
     return result;

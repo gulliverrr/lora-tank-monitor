@@ -8,7 +8,6 @@ namespace tank_monitor::tank {
 
 enum class ValidationError : std::uint8_t {
     None,
-    InvalidTankId,
     NonFiniteValue,
     InvalidCapacity,
     InvalidVolumeUnit,

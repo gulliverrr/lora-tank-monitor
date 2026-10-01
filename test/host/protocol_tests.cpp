@@ -40,7 +40,6 @@ Packet measurement_packet()
     packet.header.flags = 0xa5;
     packet.header.sender_id = 0x0102030405060708ULL;
     packet.header.receiver_id = 0x1112131415161718ULL;
-    packet.header.tank_id = 0x21222324;
     packet.header.boot_nonce = 0x31323334;
     packet.header.sequence = 0x41424344;
     packet.header.uptime_seconds = 0x51525354;
@@ -53,10 +52,10 @@ void test_round_trip_and_network_order()
     tank_monitor::protocol::EncodedFrame frame{};
     expect(tank_monitor::protocol::encode(measurement_packet(), frame) == CodecError::None,
            "packet encodes");
-       expect(frame.size == 57, "encoded frame has expected length");
+       expect(frame.size == 53, "encoded frame has expected length");
 
     const std::array<std::uint8_t, 10> expected_prefix{
-        0x4c, 0x54, 0x01, 0x28, 0x01, 0xa5, 0x01, 0x02, 0x03, 0x04};
+        0x4c, 0x54, 0x02, 0x24, 0x01, 0xa5, 0x01, 0x02, 0x03, 0x04};
     expect(std::equal(expected_prefix.begin(), expected_prefix.end(), frame.bytes.begin()),
            "header uses stable network-order prefix");
 
@@ -93,7 +92,7 @@ void test_validation_failures()
            "truncated frame fails length");
 
     auto wrong_version = frame;
-    wrong_version.bytes[2] = 2;
+    wrong_version.bytes[2] = 1;
     expect(tank_monitor::protocol::decode(wrong_version.bytes.data(), wrong_version.size).error ==
                CodecError::UnsupportedVersion,
            "unsupported version is rejected before CRC");
@@ -147,14 +146,13 @@ void test_acknowledgement_correlation()
     acknowledgement.header.message_type = MessageType::Acknowledgement;
     acknowledgement.header.sender_id = 0x1112131415161718ULL;
     acknowledgement.header.receiver_id = status.header.sender_id;
-    acknowledgement.header.tank_id = status.header.tank_id;
     acknowledgement.header.boot_nonce = status.header.boot_nonce;
     acknowledgement.header.sequence = status.header.sequence;
 
     tank_monitor::protocol::EncodedFrame frame{};
     expect(tank_monitor::protocol::encode(acknowledgement, frame) == CodecError::None,
         "acknowledgement encodes");
-    expect(frame.size == 44, "empty acknowledgement has expected frame length");
+    expect(frame.size == 40, "empty acknowledgement has expected frame length");
 
     const auto decoded = tank_monitor::protocol::decode(frame.bytes.data(), frame.size);
     expect(decoded.valid(), "acknowledgement decodes");

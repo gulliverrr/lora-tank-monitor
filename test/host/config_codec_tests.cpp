@@ -41,9 +41,7 @@ tank_monitor::config::AppConfig populated_configuration()
     value.radio.frequency_hz = 433775000;
     value.pairing.peers[0].enabled = true;
     value.pairing.peers[0].node_id = 0xaabbccdd;
-    value.pairing.peers[0].tank_id = 47;
     set_string(value.pairing.peers[0].label, "North Tank TX");
-    value.tank.tank_id = 47;
     set_string(value.tank.tank_name, "North Tank");
     value.tank.capacity_litres = 1234.5;
     value.tank.sensor_reference_height_cm = 250.25;
@@ -114,7 +112,7 @@ void test_record_rejection()
            "future record format is rejected");
 
     auto future_schema = record;
-    future_schema.bytes[8] = 2;
+    future_schema.bytes[8] = tank_monitor::config::kCurrentConfigVersion + 1;
     expect(tank_monitor::storage::decode(future_schema.bytes.data(), future_schema.size).error ==
                CodecError::UnsupportedSchemaVersion,
            "future schema is routed to migration handling");

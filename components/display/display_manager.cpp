@@ -136,7 +136,7 @@ void draw_diagnostics_page(std::uint8_t page)
         draw_line(2, line.data());
         std::snprintf(line.data(), line.size(), "WiFi %s %ddBm", bars(network_health.wifi_rssi_dbm), network_health.wifi_rssi_dbm);
         draw_line(3, line.data());
-        draw_line(5, "Hold at boot: setup");
+        draw_line(5, "Hold at boot to setup.");
     } else {
 				draw_line(0, "RADIO");
         std::snprintf(line.data(), line.size(), "%lu MHz", static_cast<unsigned long>(diagnostics.configuration.radio.frequency_hz / 1000000U));

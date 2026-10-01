@@ -61,7 +61,6 @@ int main()
     auto paired_base = tank_monitor::config::default_config();
     paired_base.pairing.peers[0].enabled = true;
     paired_base.pairing.peers[0].node_id = 0x1122334455667788ULL;
-    paired_base.pairing.peers[0].tank_id = 7;
     std::strcpy(paired_base.pairing.peers[0].label.data(), "Paired TX");
     const auto paired_result = tank_monitor::provisioning::parse_config_form(
         form.data(), form.size(), paired_base, 0xaabbccdd);

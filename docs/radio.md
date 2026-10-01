@@ -40,7 +40,7 @@ The current link checkpoint then performs one role-aware operation:
 	to its configured transmission-retry count before returning the radio to
 	sleep.
 - RX listens for one configured receive-timeout period, validates application
-	framing, receiver identity, tank identity, and saved sender pairing, logs
+	framing, receiver identity, and saved sender pairing, logs
 	link metrics, then immediately rearms reception. RX is mains-powered and
 	listens continuously; the configured timeout only bounds each internal radio
 	receive cycle and does not require synchronized board resets.

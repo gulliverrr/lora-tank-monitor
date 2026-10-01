@@ -23,7 +23,6 @@ enum class OutOfRangePolicy : std::uint8_t {
 };
 
 struct TankConfig {
-    std::uint32_t tank_id{0};
     std::array<char, 33> tank_name{};
     double capacity_litres{0.0};
     VolumeUnit display_unit{VolumeUnit::Litres};

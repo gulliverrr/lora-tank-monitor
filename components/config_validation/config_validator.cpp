@@ -98,7 +98,7 @@ bool valid_pairing(const config::PairingConfig& pairing)
         }
         if (peer.enabled) {
             ++enabled_count;
-            if (peer.node_id == 0 || peer.tank_id == 0) {
+            if (peer.node_id == 0) {
                 return false;
             }
         }
@@ -156,7 +156,6 @@ ConfigValidationResult validate(const config::AppConfig& configuration)
     }
     if (configuration.device.role == config::DeviceRole::Transmitter &&
         (!terminated(configuration.tank.tank_name) ||
-         (configuration.tank.tank_id != 0 && empty(configuration.tank.tank_name)) ||
          !tank::validate(configuration.tank).valid())) {
         return {ConfigError::InvalidTank};
     }

@@ -45,7 +45,7 @@ label{display:grid;gap:5px;color:var(--muted)}input,select{width:100%;border:1px
 <form id="config"><section><h2>Device</h2><div class="wide role"><label><input type="radio" name="role" value="tx" checked> Tank</label><label><input type="radio" name="role" value="rx"> Gateway</label></div></section>
 <section><h2>Wi-Fi</h2><div class="grid"><label class="wide">Network<select name="wifi_ssid" id="wifi"><option value="">Select a network</option></select></label><label>Password<input name="wifi_password" maxlength="64" autocomplete="new-password" placeholder="Unchanged when blank"></label><div><button type="button" class="secondary" id="scan">Scan networks</button></div></div></section>
 <details open><summary>LoRa Radio</summary><div class="grid"><label>Chip<select name="radio_chip"><option value="sx1278">SX1278</option><option value="sx1276">SX1276</option></select></label><label>Frequency (Hz)<input name="frequency_hz" type="number" value="433000000" required></label><label>Bandwidth (Hz)<select name="bandwidth_hz"><option>62500</option><option selected>125000</option><option>250000</option></select></label><label>Spreading factor<input name="spreading_factor" type="number" min="6" max="12" value="9" required></label><label>Coding-rate denominator<input name="coding_rate" type="number" min="5" max="8" value="5" required></label><label>Sync word<input name="sync_word" type="number" min="0" max="255" value="18" required></label><label>Preamble symbols<input name="preamble" type="number" value="8" required></label><label>TX power (dBm)<input name="tx_power" type="number" value="14" required></label><label>RX timeout (ms)<input name="rx_timeout_ms" type="number" value="2000" required></label><label>TX timeout (ms)<input name="tx_timeout_ms" type="number" value="5000" required></label></div></details>
-<details open data-role="tx"><summary>Tank Details</summary><div class="grid"><label>Tank ID<input name="tank_id" type="number" min="1" value="1" required></label><label>Tank name<input name="tank_name" maxlength="32" value="Tank 1" required></label><label>Capacity (units)<input name="capacity_litres" type="number" step="any" value="1000" required></label><label>Display unit<select name="volume_unit"><option value="litres">Litres</option><option value="us_gallons">US gallons</option><option value="imperial_gallons">Imperial gallons</option></select></label><label>Volume model<select name="volume_model"><option value="capacity">Capacity from percent</option><option value="linear">Litres per centimetre</option></select></label><label>Litres per cm<input name="volume_per_cm" type="number" step="any" value="5" required></label><label>Sensor reference height (cm)<input name="reference_height_cm" type="number" step="any" value="220" required></label><label>Minimum sensor distance (cm)<input name="min_distance_cm" type="number" step="any" value="20" required></label><label>Maximum sensor distance (cm)<input name="max_distance_cm" type="number" step="any" value="210" required></label><label>Empty water level (cm)<input name="empty_level_cm" type="number" step="any" value="20" required></label><label>Full water level (cm)<input name="full_level_cm" type="number" step="any" value="180" required></label><label>Sensor offset (cm)<input name="sensor_offset_cm" type="number" step="any" value="0" required></label><label>Out-of-range policy<select name="range_policy"><option value="reject">Reject</option><option value="clamp">Clamp</option></select></label></div></details>
+<details open data-role="tx"><summary>Tank details</summary><div class="grid"><label>Sensor to bottom (cm)<input name="sensor_bottom_cm" type="number" step="any" value="220" required></label><label>Sensor to max surface (cm)<input name="sensor_surface_cm" type="number" step="any" value="40" required></label><label>Full capacity (units)<input name="tank_capacity_litres" type="number" step="any" value="1000" required></label><label>Display unit<select name="volume_unit"><option value="litres">Litres</option><option value="us_gallons">US gallons</option><option value="imperial_gallons">Imperial gallons</option></select></label><label>Out-of-range<select name="range_policy"><option value="reject">Reject</option><option value="clamp">Clamp</option><option value="report" selected>Report (clamp %)</option></select></label><label>Measurement interval (minutes)<input name="measurement_interval_minutes" type="number" min="1" max="1440" value="30" required></label><small class="wide">Bottom is the empty water surface. Max surface is the highest expected water surface, measured from the sensor.</small></div></details>
 <details><summary>Alarms</summary><div id="alarms"></div></details>
 <details><summary>Blynk</summary><div class="grid"><label class="check"><input type="checkbox" name="blynk_enabled" value="1"> Enabled</label><label>Host<input name="blynk_host" maxlength="64" value="blynk.cloud"></label><label>Port<input name="blynk_port" type="number" value="443" required></label><label>Template ID<input name="blynk_template" maxlength="64"></label><label>Device name<input name="blynk_device" maxlength="64"></label><label>Auth token<input name="blynk_token" type="password" maxlength="96" autocomplete="new-password" placeholder="Unchanged when blank"></label><label>Publish interval (s)<input name="blynk_interval_s" type="number" value="60" required></label><div class="wide grid pins" id="pins"></div></div></details>
 <section><h2>Pairing</h2><div class="actions"><span id="pairing" class="message">Unpaired</span><button type="button" class="danger" id="clear-pairing" disabled>Clear pairing</button></div></section>
@@ -59,7 +59,6 @@ function updateRole(){const role=document.querySelector('input[name="role"]:chec
 ['display_enabled','display_timeout_s','long_press_ms','hostname','wifi_retry_min_ms','wifi_retry_max_ms'].forEach(name=>{const field=document.querySelector(`[name="${name}"]`);const label=field?field.closest('label'):null;if(label)label.setAttribute('hidden','')});
 const sensorSection=[...document.querySelectorAll('details')].find(node=>(node.querySelector('summary')||{}).textContent==='Sensor and timing');if(sensorSection)sensorSection.hidden=true;
 const batterySection=[...document.querySelectorAll('details')].find(node=>(node.querySelector('summary')||{}).textContent==='Battery');if(batterySection)batterySection.hidden=true;
-const tankSection=[...document.querySelectorAll('details')].find(node=>(node.querySelector('summary')||{}).textContent==='Tank Details');if(tankSection){tankSection.querySelector('summary').textContent='Tank details';tankSection.querySelector('.grid').innerHTML='<label>Sensor to bottom (cm)<input name="sensor_bottom_cm" type="number" step="any" value="220" required></label><label>Sensor to max surface (cm)<input name="sensor_surface_cm" type="number" step="any" value="40" required></label><label>Full capacity (units)<input name="tank_capacity_litres" type="number" step="any" value="1000" required></label><label>Display unit<select name="volume_unit"><option value="litres">Litres</option><option value="us_gallons">US gallons</option><option value="imperial_gallons">Imperial gallons</option></select></label><label>Out-of-range<select name="range_policy"><option value="reject">Reject</option><option value="clamp">Clamp</option><option value="report" selected>Report (clamp %)</option></select></label><label>Measurement interval (minutes)<input name="measurement_interval_minutes" type="number" min="1" max="1440" value="30" required></label><small class="wide">Bottom is the empty water surface. Max surface is the highest expected water surface, measured from the sensor.</small>';}
 function applyValues(values){Object.entries(values).forEach(([name,value])=>{const fields=document.querySelectorAll(`[name="${name}"]`);fields.forEach(field=>{if(field.type==='radio')field.checked=field.value===String(value);else if(field.type==='checkbox')field.checked=Boolean(value);else{if(field.tagName==='SELECT'&&![...field.options].some(o=>o.value===String(value))&&value)field.add(new Option(String(value),String(value)));field.value=String(value)}})})}
 async function init(){const r=await fetch('/api/status');if(!r.ok)throw new Error('status');const s=await r.json();session=s.session;document.getElementById('ap').textContent=s.ap;const current=await fetch('/api/config/current');if(!current.ok)throw new Error('config');const c=await current.json();if(c.configured||c.staged)applyValues(c.values);const paired=Boolean(c.paired);document.getElementById('pairing').textContent=paired?`Paired TX: ${c.paired_node_id}`:'Unpaired';document.getElementById('clear-pairing').disabled=!paired;updateRole();}
 async function loadNetworks(){message.textContent='Scanning...';message.classList.remove('error');await fetch('/api/wifi/scan',{method:'POST',headers:{'X-LTM-Session':session}});for(let i=0;i<20;i++){await new Promise(r=>setTimeout(r,500));const result=await fetch('/api/wifi/networks');const data=await result.json();if(!data.scanning){const select=document.getElementById('wifi');select.replaceChildren(new Option('Select a network',''));data.networks.forEach(n=>select.add(new Option(`${n.ssid} (${n.rssi} dBm)`,n.ssid)));message.textContent=`${data.networks.length} networks found`;return;}}message.textContent='Scan timed out';message.classList.add('error');}
@@ -92,12 +91,25 @@ std::size_t network_count = 0;
 std::atomic<bool> scan_in_progress{false};
 portMUX_TYPE network_lock = portMUX_INITIALIZER_UNLOCKED;
 
-void wifi_event_handler(void*, esp_event_base_t, std::int32_t event_id, void*)
+void wifi_event_handler(void*, esp_event_base_t, std::int32_t event_id, void* event_data)
 {
+    if (event_id == WIFI_EVENT_AP_STACONNECTED) {
+        const auto* event = static_cast<const wifi_event_ap_staconnected_t*>(event_data);
+        ESP_LOGI(kLogTag, "Portal client associated: %02x:%02x:%02x:%02x:%02x:%02x",
+                 event->mac[0], event->mac[1], event->mac[2], event->mac[3], event->mac[4], event->mac[5]);
+        return;
+    }
+    if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        const auto* event = static_cast<const wifi_event_ap_stadisconnected_t*>(event_data);
+        ESP_LOGI(kLogTag, "Portal client disconnected: %02x:%02x:%02x:%02x:%02x:%02x",
+                 event->mac[0], event->mac[1], event->mac[2], event->mac[3], event->mac[4], event->mac[5]);
+        return;
+    }
     if (event_id != WIFI_EVENT_SCAN_DONE) {
         return;
     }
-    std::array<wifi_ap_record_t, kMaximumNetworks> records{};
+    // Static: sys_evt task stack (2304 B) cannot hold ~1.3 KB of AP records.
+    static std::array<wifi_ap_record_t, kMaximumNetworks> records{};
     std::uint16_t count = records.size();
     if (esp_wifi_scan_get_ap_records(&count, records.data()) != ESP_OK) {
         count = 0;
@@ -131,6 +143,7 @@ esp_err_t set_security_headers(httpd_req_t* request)
 
 esp_err_t root_handler(httpd_req_t* request)
 {
+    ESP_LOGI(kLogTag, "Portal page requested");
     set_security_headers(request);
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     return httpd_resp_send(request, kPortalHtml, HTTPD_RESP_USE_STRLEN);
@@ -460,6 +473,7 @@ esp_err_t clear_pairing_handler(httpd_req_t* request)
 
 esp_err_t redirect_to_portal(httpd_req_t* request)
 {
+    ESP_LOGI(kLogTag, "Captive HTTP probe redirected: %s", request->uri);
     set_security_headers(request);
     httpd_resp_set_status(request, "302 Found");
     httpd_resp_set_hdr(request, "Location", "http://192.168.4.1/");
@@ -527,6 +541,7 @@ void dns_task(void*)
         vTaskDelete(nullptr);
         return;
     }
+    ESP_LOGI(kLogTag, "Captive DNS listening on UDP/53");
 
     std::array<std::uint8_t, kDnsPacketMaximum> packet{};
     while (dns_running.load()) {
@@ -539,32 +554,43 @@ void dns_task(void*)
         }
         const std::size_t received_size = static_cast<std::size_t>(received);
         const std::size_t question_end = dns_question_end(packet.data(), received_size);
-        if (question_end == 0 || packet[4] == 0 || (packet[2] & 0x80U) != 0) {
+        if (question_end == 0 || packet[4] != 0 || packet[5] != 1 || (packet[2] & 0x80U) != 0) {
             continue;
         }
 
-        packet[2] = 0x81;
-        packet[3] = 0x80;
+        const std::uint16_t question_type = static_cast<std::uint16_t>(packet[question_end - 4] << 8U) |
+            packet[question_end - 3];
+        const std::uint16_t question_class = static_cast<std::uint16_t>(packet[question_end - 2] << 8U) |
+            packet[question_end - 1];
+        const bool answer_with_portal_ip = question_type == 1 && question_class == 1;
+        const std::uint8_t recursion_desired = packet[2] & 0x01U;
+        packet[2] = static_cast<std::uint8_t>(0x84U | recursion_desired);
+        packet[3] = 0;
         packet[6] = 0;
-        packet[7] = 1;
+        packet[7] = answer_with_portal_ip ? 1 : 0;
         packet[8] = packet[9] = packet[10] = packet[11] = 0;
         std::size_t response_size = question_end;
-        const bool appended =
-            append_dns_u16(packet, response_size, 0xc00c) &&
-            append_dns_u16(packet, response_size, 1) &&
-            append_dns_u16(packet, response_size, 1) &&
-            append_dns_u16(packet, response_size, 0) &&
-            append_dns_u16(packet, response_size, 0) &&
-            append_dns_u16(packet, response_size, 4);
-        if (!appended || response_size + 4 > packet.size()) {
-            continue;
+        if (answer_with_portal_ip) {
+            const bool appended =
+                append_dns_u16(packet, response_size, 0xc00c) &&
+                append_dns_u16(packet, response_size, 1) &&
+                append_dns_u16(packet, response_size, 1) &&
+                append_dns_u16(packet, response_size, 0) &&
+                append_dns_u16(packet, response_size, 0) &&
+                append_dns_u16(packet, response_size, 4);
+            if (!appended || response_size + 4 > packet.size()) {
+                continue;
+            }
+            packet[response_size++] = 192;
+            packet[response_size++] = 168;
+            packet[response_size++] = 4;
+            packet[response_size++] = 1;
         }
-        packet[response_size++] = 192;
-        packet[response_size++] = 168;
-        packet[response_size++] = 4;
-        packet[response_size++] = 1;
-        sendto(socket_fd, packet.data(), response_size, 0,
-               reinterpret_cast<const sockaddr*>(&client), client_length);
+        ESP_LOGI(kLogTag, "Captive DNS query type=%u class=%u", question_type, question_class);
+        if (sendto(socket_fd, packet.data(), response_size, 0,
+                   reinterpret_cast<const sockaddr*>(&client), client_length) < 0) {
+            ESP_LOGW(kLogTag, "Captive DNS reply failed: %d", errno);
+        }
     }
     close(socket_fd);
     dns_task_handle = nullptr;
@@ -638,7 +664,7 @@ bool initialize_wifi_stack()
     }
     const wifi_init_config_t wifi_initialization = WIFI_INIT_CONFIG_DEFAULT();
     return esp_wifi_init(&wifi_initialization) == ESP_OK &&
-        esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, wifi_event_handler, nullptr) == ESP_OK &&
+        esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, nullptr) == ESP_OK &&
         esp_wifi_set_storage(WIFI_STORAGE_RAM) == ESP_OK;
 }
 
@@ -708,9 +734,8 @@ FormResult ProvisioningManager::stage(const char* body, std::size_t size)
     has_valid_stage_ = result.valid();
     if (result.valid()) {
         staged_configuration_ = result.configuration;
-        ESP_LOGI(kLogTag, "Configuration staged: role=%u tank_id=%lu tank=%s",
+        ESP_LOGI(kLogTag, "Configuration staged: role=%u tank=%s",
                  static_cast<unsigned int>(staged_configuration_.device.role),
-                 static_cast<unsigned long>(staged_configuration_.tank.tank_id),
                  staged_configuration_.tank.tank_name.data());
     } else {
         ESP_LOGW(kLogTag, "Configuration stage rejected: form=%u validation=%u",

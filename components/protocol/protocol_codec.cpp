@@ -141,11 +141,10 @@ CodecError encode(const Packet& packet, EncodedFrame& frame)
     frame.bytes[5] = packet.header.flags;
     write_u64(&frame.bytes[6], packet.header.sender_id);
     write_u64(&frame.bytes[14], packet.header.receiver_id);
-    write_u32(&frame.bytes[22], packet.header.tank_id);
-    write_u32(&frame.bytes[26], packet.header.boot_nonce);
-    write_u32(&frame.bytes[30], packet.header.sequence);
-    write_u32(&frame.bytes[34], packet.header.uptime_seconds);
-    write_u16(&frame.bytes[38], static_cast<std::uint16_t>(packet.payload.size));
+    write_u32(&frame.bytes[22], packet.header.boot_nonce);
+    write_u32(&frame.bytes[26], packet.header.sequence);
+    write_u32(&frame.bytes[30], packet.header.uptime_seconds);
+    write_u16(&frame.bytes[34], static_cast<std::uint16_t>(packet.payload.size));
     std::copy_n(packet.payload.bytes.begin(), packet.payload.size, frame.bytes.begin() + kHeaderSize);
 
     const std::size_t crc_offset = kHeaderSize + packet.payload.size;
@@ -182,7 +181,7 @@ DecodeResult decode(const std::uint8_t* data, std::size_t length)
         return result;
     }
 
-    const std::size_t payload_size = read_u16(&data[38]);
+    const std::size_t payload_size = read_u16(&data[34]);
     if (payload_size > kMaximumPayloadSize ||
         length != kHeaderSize + payload_size + kCrcSize) {
         result.error = CodecError::LengthMismatch;
@@ -198,10 +197,9 @@ DecodeResult decode(const std::uint8_t* data, std::size_t length)
     result.packet.header.flags = data[5];
     result.packet.header.sender_id = read_u64(&data[6]);
     result.packet.header.receiver_id = read_u64(&data[14]);
-    result.packet.header.tank_id = read_u32(&data[22]);
-    result.packet.header.boot_nonce = read_u32(&data[26]);
-    result.packet.header.sequence = read_u32(&data[30]);
-    result.packet.header.uptime_seconds = read_u32(&data[34]);
+    result.packet.header.boot_nonce = read_u32(&data[22]);
+    result.packet.header.sequence = read_u32(&data[26]);
+    result.packet.header.uptime_seconds = read_u32(&data[30]);
     result.packet.payload.size = payload_size;
     std::copy_n(&data[kHeaderSize], payload_size, result.packet.payload.bytes.begin());
     return result;

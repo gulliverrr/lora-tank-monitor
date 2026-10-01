@@ -1,12 +1,11 @@
 # Configuration model
 
-`AppConfig` is the runtime configuration root. Version 1 contains device,
+`AppConfig` is the runtime configuration root. Version 2 contains device,
 Wi-Fi, radio, pairing, tank, sensor, alarm, battery, and Blynk sections. The
 default object is intentionally marked unconfigured and cannot enter normal
 operation.
 
-Tank settings include a bounded user-facing name and numeric tank ID. Both are
-required for an operational configuration.
+Version 1 records, which also stored a numeric tank ID, are upgraded on load.
 
 Configuration strings and peer collections have fixed capacities suitable for
 bounded embedded storage. No credentials or installation dimensions are
@@ -23,7 +22,7 @@ time, sensor timing, Wi-Fi retry bounds, and the voltage-derived 18650 battery
 estimate. Those values are not installation-specific and are therefore not
 editable during setup.
 
-RX starts unpaired. The first valid measurement matching its configured tank ID
+RX starts unpaired. The first valid measurement it receives
 becomes its permanent TX pairing; later packets are accepted only from that
 sender. The Pairing section of the provisioning portal clears this binding
 without changing the rest of the saved configuration. TX has no pairing state

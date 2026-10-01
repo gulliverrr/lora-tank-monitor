@@ -32,7 +32,6 @@ void expect_near(double actual, double expected, const char* description)
 TankConfig valid_configuration()
 {
     TankConfig configuration{};
-    configuration.tank_id = 42;
     configuration.capacity_litres = 1000.0;
     configuration.display_unit = VolumeUnit::Litres;
     configuration.volume_model = VolumeModel::CapacityFromPercent;

@@ -11,8 +11,7 @@ MigrationStatus migrate_to_current(AppConfig& configuration)
         return MigrationStatus::FutureVersion;
     }
 
-    // Schema version 1 is the first persistent format. Add sequential
-    // transformations here before incrementing kCurrentConfigVersion.
+    // Schema 1 records are upgraded by the storage codec, which drops legacy tank IDs.
     return MigrationStatus::UnsupportedOlderVersion;
 }
 

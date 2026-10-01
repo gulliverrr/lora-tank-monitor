@@ -240,7 +240,6 @@ bool parse_tank(const FormReader& form, config::TankConfig& tank)
           form.choice("range_policy", range_policy.data(), range_policy.size()))) {
         return false;
     }
-    tank.tank_id = 1;
     std::snprintf(tank.tank_name.data(), tank.tank_name.size(), "Tank");
     tank.sensor_reference_height_cm = sensor_to_bottom;
     tank.minimum_sensor_distance_cm = sensor_to_surface;

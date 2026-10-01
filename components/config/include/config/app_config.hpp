@@ -9,7 +9,7 @@
 
 namespace tank_monitor::config {
 
-constexpr std::uint32_t kCurrentConfigVersion = 1;
+constexpr std::uint32_t kCurrentConfigVersion = 2;
 constexpr std::size_t kMaximumPairedNodes = 4;
 constexpr std::size_t kBlynkDatastreamCount = 12;
 
@@ -62,7 +62,6 @@ struct RadioConfig {
 struct PairedNodeConfig {
     bool enabled{false};
     std::uint64_t node_id{0};
-    std::uint32_t tank_id{0};
     FixedString<33> label{};
 };
 

@@ -7,8 +7,8 @@
 namespace tank_monitor::protocol {
 
 constexpr std::uint16_t kMagic = 0x4c54;
-constexpr std::uint8_t kProtocolVersion = 1;
-constexpr std::size_t kHeaderSize = 40;
+constexpr std::uint8_t kProtocolVersion = 2;
+constexpr std::size_t kHeaderSize = 36;
 constexpr std::size_t kCrcSize = 4;
 constexpr std::size_t kMaximumFrameSize = 255;
 constexpr std::size_t kMaximumPayloadSize = kMaximumFrameSize - kHeaderSize - kCrcSize;
@@ -38,7 +38,6 @@ struct Header {
     std::uint8_t flags{0};
     std::uint64_t sender_id{0};
     std::uint64_t receiver_id{0};
-    std::uint32_t tank_id{0};
     std::uint32_t boot_nonce{0};
     std::uint32_t sequence{0};
     std::uint32_t uptime_seconds{0};

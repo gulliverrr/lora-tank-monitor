@@ -32,9 +32,6 @@ bool all_finite(const config::TankConfig& configuration)
 
 ValidationResult validate(const config::TankConfig& configuration)
 {
-    if (configuration.tank_id == 0) {
-        return {ValidationError::InvalidTankId};
-    }
     if (!all_finite(configuration)) {
         return {ValidationError::NonFiniteValue};
     }

@@ -39,7 +39,6 @@ AppConfig operational_config(DeviceRole role)
     set_string(configuration.wifi.hostname, "tank-monitor");
     configuration.radio.chip = RadioChip::Sx1278;
     configuration.radio.frequency_hz = 433000000;
-    configuration.tank.tank_id = 7;
     set_string(configuration.tank.tank_name, "Example Tank");
     configuration.tank.capacity_litres = 1000.0;
     configuration.tank.sensor_reference_height_cm = 220.0;
@@ -98,10 +97,8 @@ void test_cross_field_validation()
     auto pairing = operational_config(DeviceRole::Receiver);
     pairing.pairing.peers[0].enabled = true;
     pairing.pairing.peers[0].node_id = 1;
-    pairing.pairing.peers[0].tank_id = 7;
     pairing.pairing.peers[1].enabled = true;
     pairing.pairing.peers[1].node_id = 2;
-    pairing.pairing.peers[1].tank_id = 8;
     expect(tank_monitor::config_validation::validate(pairing).error == ConfigError::InvalidPairing,
            "v1 permits at most one active peer");
 

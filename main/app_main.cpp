@@ -61,7 +61,7 @@ bool paired_sender_matches_or_binds(
 {
     for (const auto& peer : configuration.pairing.peers) {
         if (peer.enabled) {
-            return peer.node_id == header.sender_id && peer.tank_id == header.tank_id;
+            return peer.node_id == header.sender_id;
         }
     }
 
@@ -70,16 +70,14 @@ bool paired_sender_matches_or_binds(
     peer = {};
     peer.enabled = true;
     peer.node_id = header.sender_id;
-    peer.tank_id = header.tank_id;
     std::snprintf(peer.label.data(), peer.label.size(), "Paired TX");
     if (config_store.save(configuration) != tank_monitor::storage::StoreStatus::Ok) {
         peer = previous_peer;
         ESP_LOGE(kLogTag, "Failed to persist LoRa sender pairing");
         return false;
     }
-    ESP_LOGI(kLogTag, "Paired LoRa sender: %016llx tank=%lu",
-             static_cast<unsigned long long>(header.sender_id),
-             static_cast<unsigned long>(header.tank_id));
+    ESP_LOGI(kLogTag, "Paired LoRa sender: %016llx",
+             static_cast<unsigned long long>(header.sender_id));
     return true;
 }
 
@@ -143,7 +141,6 @@ void run_radio_link_checkpoint(
         packet.header.message_type = MessageType::Measurement;
         packet.header.sender_id = configuration.device.node_id;
         packet.header.receiver_id = 0;
-        packet.header.tank_id = configuration.tank.tank_id;
         packet.header.boot_nonce = esp_random();
         packet.header.sequence = 0;
         packet.payload = payload.payload();
@@ -184,8 +181,7 @@ void run_radio_link_checkpoint(
     }
     const auto& header = decoded.packet.header;
     if (header.message_type != MessageType::Measurement || header.sender_id == 0 ||
-        (header.receiver_id != 0 && header.receiver_id != configuration.device.node_id) ||
-        header.tank_id != configuration.tank.tank_id) {
+        (header.receiver_id != 0 && header.receiver_id != configuration.device.node_id)) {
         ESP_LOGW(kLogTag, "Rejected unrelated LoRa frame");
         return;
     }
