@@ -4,6 +4,7 @@
 
 #include "driver/i2c_master.h"
 #include "driver/gpio.h"
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -23,6 +24,7 @@ constexpr char kLogTag[] = "display";
 constexpr int kWidth = 128;
 constexpr int kHeight = 64;
 constexpr int kLineHeight = 9;
+constexpr int kCharWidth = 6;
 ssd1306_handle_t display = nullptr;
 
 struct DiagnosticsContext {
@@ -47,6 +49,25 @@ std::atomic<bool> idle_timeout_elapsed{false};
 bool draw_line(int line, const char* text)
 {
     return ssd1306_draw_text(display, 0, line * kLineHeight, text, true) == ESP_OK;
+}
+
+void draw_title_with_version(const char* title)
+{
+    draw_line(0, title);
+    const char* version = esp_app_get_description()->version;
+    if (*version == 'v') ++version;
+    std::array<char, 16> text{};
+    std::snprintf(text.data(), text.size(), "v%.*s",
+                  static_cast<int>(std::strcspn(version, "-+")), version);
+    const char* shown = text.data();
+    const int available = kWidth - (static_cast<int>(std::strlen(title)) + 1) * kCharWidth;
+    int width = static_cast<int>(std::strlen(shown)) * kCharWidth - 1;
+    if (width > available) {
+        ++shown;
+        width -= kCharWidth;
+    }
+    if (width > available) return;
+    ssd1306_draw_text(display, kWidth - width, 0, shown, true);
 }
 
 void format_age(std::int64_t then_us, char* output, std::size_t capacity)
@@ -96,7 +117,7 @@ void draw_diagnostics_page(std::uint8_t page)
     std::array<char, 22> line{};
     if (page == 0) {
         if (diagnostics.configuration.device.role == config::DeviceRole::Transmitter) {
-            draw_line(0, "TANK STATUS");
+            draw_title_with_version("TANK STATUS");
             std::snprintf(line.data(), line.size(), "Batt %u%% %.2fV", diagnostics.battery.percentage, diagnostics.battery.calibrated_voltage);
             draw_line(2, line.data());
             std::array<char, 12> age_text{};
@@ -112,7 +133,7 @@ void draw_diagnostics_page(std::uint8_t page)
             std::snprintf(line.data(), line.size(), "Next %s", countdown.data());
             draw_line(6, line.data());
         } else {
-            draw_line(0, "GATEWAY STATUS");
+            draw_title_with_version("GATEWAY STATUS");
             std::snprintf(line.data(), line.size(), "TX batt %u%% %.2fV", rx_telemetry.battery_percentage, static_cast<double>(rx_telemetry.battery_millivolts) / 1000.0);
             draw_line(1, line.data());
             std::snprintf(line.data(), line.size(), "LoRa %s %ddBm", rssi_word(rx_telemetry.rssi_dbm), rx_telemetry.rssi_dbm);

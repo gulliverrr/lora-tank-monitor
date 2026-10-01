@@ -1,10 +1,12 @@
 #include "provisioning/provisioning_manager.hpp"
 
 #include "cJSON.h"
+#include "esp_app_desc.h"
 #include "esp_event.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
@@ -49,7 +51,8 @@ label{display:grid;gap:5px;color:var(--muted)}input,select{width:100%;border:1px
 <details><summary>Alarms</summary><div id="alarms"></div></details>
 <details><summary>Blynk</summary><div class="grid"><label class="check"><input type="checkbox" name="blynk_enabled" value="1"> Enabled</label><label>Host<input name="blynk_host" maxlength="64" value="blynk.cloud"></label><label>Port<input name="blynk_port" type="number" value="443" required></label><label>Template ID<input name="blynk_template" maxlength="64"></label><label>Device name<input name="blynk_device" maxlength="64"></label><label>Auth token<input name="blynk_token" type="password" maxlength="96" autocomplete="new-password" placeholder="Unchanged when blank"></label><label>Publish interval (s)<input name="blynk_interval_s" type="number" value="60" required></label><div class="wide grid pins" id="pins"></div></div></details>
 <section><h2>Pairing</h2><div class="actions"><span id="pairing" class="message">Unpaired</span><button type="button" class="danger" id="clear-pairing" disabled>Clear pairing</button></div></section>
-<section><div class="actions"><button type="submit">Validate staged configuration</button><button type="button" id="save" disabled>Save and reboot</button><button type="button" class="danger" id="reset">Factory reset</button><span id="message" class="message"></span></div></section></form></main>
+<section><div class="actions"><button type="submit">Validate staged configuration</button><button type="button" id="save" disabled>Save and reboot</button><button type="button" class="danger" id="reset">Factory reset</button><span id="message" class="message"></span></div></section></form>
+<section><h2>Firmware</h2><div class="grid"><div class="wide">Installed version: <b id="fw-version">unknown</b></div><div class="wide"><a href="https://github.com/gulliverrr/lora-tank-monitor/releases/latest" target="_blank" rel="noopener">Download latest release</a> &middot; <a href="https://github.com/gulliverrr/lora-tank-monitor" target="_blank" rel="noopener">Project page</a></div><small class="wide">Download the <b>lora_tank_monitor.bin</b> file before joining this device's Wi-Fi, since the hotspot has no internet access.</small><label class="wide">Firmware file (.bin)<input type="file" id="fw-file" accept=".bin,application/octet-stream"></label><div class="actions wide"><button type="button" class="secondary" id="fw-upload">Upload and install</button><span id="fw-message" class="message"></span></div></div></section></main>
 <script>
 let session='';const message=document.getElementById('message');
 document.getElementById('alarms').closest('details').hidden=true;
@@ -60,9 +63,10 @@ function updateRole(){const role=document.querySelector('input[name="role"]:chec
 const sensorSection=[...document.querySelectorAll('details')].find(node=>(node.querySelector('summary')||{}).textContent==='Sensor and timing');if(sensorSection)sensorSection.hidden=true;
 const batterySection=[...document.querySelectorAll('details')].find(node=>(node.querySelector('summary')||{}).textContent==='Battery');if(batterySection)batterySection.hidden=true;
 function applyValues(values){Object.entries(values).forEach(([name,value])=>{const fields=document.querySelectorAll(`[name="${name}"]`);fields.forEach(field=>{if(field.type==='radio')field.checked=field.value===String(value);else if(field.type==='checkbox')field.checked=Boolean(value);else{if(field.tagName==='SELECT'&&![...field.options].some(o=>o.value===String(value))&&value)field.add(new Option(String(value),String(value)));field.value=String(value)}})})}
-async function init(){const r=await fetch('/api/status');if(!r.ok)throw new Error('status');const s=await r.json();session=s.session;document.getElementById('ap').textContent=s.ap;const current=await fetch('/api/config/current');if(!current.ok)throw new Error('config');const c=await current.json();if(c.configured||c.staged)applyValues(c.values);const paired=Boolean(c.paired);document.getElementById('pairing').textContent=paired?`Paired TX: ${c.paired_node_id}`:'Unpaired';document.getElementById('clear-pairing').disabled=!paired;updateRole();}
+async function init(){const r=await fetch('/api/status');if(!r.ok)throw new Error('status');const s=await r.json();session=s.session;document.getElementById('ap').textContent=s.ap;document.getElementById('fw-version').textContent=s.firmware||'unknown';const current=await fetch('/api/config/current');if(!current.ok)throw new Error('config');const c=await current.json();if(c.configured||c.staged)applyValues(c.values);const paired=Boolean(c.paired);document.getElementById('pairing').textContent=paired?`Paired TX: ${c.paired_node_id}`:'Unpaired';document.getElementById('clear-pairing').disabled=!paired;updateRole();}
 async function loadNetworks(){message.textContent='Scanning...';message.classList.remove('error');await fetch('/api/wifi/scan',{method:'POST',headers:{'X-LTM-Session':session}});for(let i=0;i<20;i++){await new Promise(r=>setTimeout(r,500));const result=await fetch('/api/wifi/networks');const data=await result.json();if(!data.scanning){const select=document.getElementById('wifi');select.replaceChildren(new Option('Select a network',''));data.networks.forEach(n=>select.add(new Option(`${n.ssid} (${n.rssi} dBm)`,n.ssid)));message.textContent=`${data.networks.length} networks found`;return;}}message.textContent='Scan timed out';message.classList.add('error');}
 document.getElementById('scan').onclick=loadNetworks;
+document.getElementById('fw-upload').onclick=()=>{const file=document.getElementById('fw-file').files[0];const m=document.getElementById('fw-message');m.classList.remove('error');if(!file){m.textContent='Choose a .bin file first';m.classList.add('error');return;}if(!confirm(`Install ${file.name}? The device will reboot.`))return;const button=document.getElementById('fw-upload');button.disabled=true;const x=new XMLHttpRequest();x.open('POST','/api/firmware');x.setRequestHeader('X-LTM-Session',session);x.setRequestHeader('Content-Type','application/octet-stream');x.upload.onprogress=e=>{if(e.lengthComputable)m.textContent=`Uploading ${Math.round(e.loaded*100/e.total)}%`};x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch(_){}m.textContent=d.installed?`Installed ${d.version||''}. Rebooting...`:'Install failed ('+(d.error||x.status)+')';m.classList.toggle('error',!d.installed);button.disabled=Boolean(d.installed)};x.onerror=()=>{m.textContent='Upload failed';m.classList.add('error');button.disabled=false};x.send(file)};
 document.querySelectorAll('input[name="role"]').forEach(field=>field.onchange=updateRole);
 document.getElementById('config').addEventListener('invalid',e=>{const details=e.target.closest('details');if(details)details.open=true;const label=e.target.closest('label');message.textContent='Check '+(label?label.textContent.trim():e.target.name);message.classList.add('error')},true);
 document.getElementById('config').onsubmit=async e=>{e.preventDefault();message.textContent='Validating...';message.classList.remove('error');try{const body=new URLSearchParams(new FormData(e.target));const r=await fetch('/api/config/stage',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-LTM-Session':session},body:body});const data=await r.json();document.getElementById('save').disabled=!data.valid;const reason=data.validation_error!==undefined?data.validation_error:data.error;message.textContent=data.valid?'Configuration is valid and staged':'Validation failed ('+reason+')';message.classList.toggle('error',!data.valid)}catch(error){document.getElementById('save').disabled=true;message.textContent='Validation request failed';message.classList.add('error')}};
@@ -153,13 +157,14 @@ esp_err_t status_handler(httpd_req_t* request)
 {
     set_security_headers(request);
     httpd_resp_set_type(request, "application/json");
-    std::array<char, 200> response{};
+    std::array<char, 256> response{};
     const char* name = active_manager == nullptr ? "" : active_manager->access_point_name();
     std::snprintf(response.data(), response.size(),
-                  "{\"provisioning\":true,\"ap\":\"%s\",\"ip\":\"%s\",\"session\":\"%08lX\",\"staged\":%s}",
+                  "{\"provisioning\":true,\"ap\":\"%s\",\"ip\":\"%s\",\"session\":\"%08lX\",\"staged\":%s,\"firmware\":\"%s\"}",
                   name, kPortalIp,
                   static_cast<unsigned long>(active_manager == nullptr ? 0 : active_manager->session_token()),
-                  active_manager != nullptr && active_manager->has_valid_stage() ? "true" : "false");
+                  active_manager != nullptr && active_manager->has_valid_stage() ? "true" : "false",
+                  esp_app_get_description()->version);
     return httpd_resp_send(request, response.data(), HTTPD_RESP_USE_STRLEN);
 }
 
@@ -471,6 +476,69 @@ esp_err_t clear_pairing_handler(httpd_req_t* request)
     return httpd_resp_send(request, "{\"cleared\":true}", HTTPD_RESP_USE_STRLEN);
 }
 
+esp_err_t firmware_handler(httpd_req_t* request)
+{
+    if (!request_session_valid(request)) {
+        return json_error(request, "403 Forbidden", "{\"error\":\"session\"}");
+    }
+    const esp_partition_t* target = esp_ota_get_next_update_partition(nullptr);
+    if (target == nullptr) {
+        return json_error(request, "409 Conflict", "{\"error\":\"no_ota_partition\"}");
+    }
+    if (request->content_len == 0 || request->content_len > target->size) {
+        return json_error(request, "413 Content Too Large", "{\"error\":\"size\"}");
+    }
+    constexpr std::size_t kChunkSize = 4096;
+    std::unique_ptr<char[]> chunk(new (std::nothrow) char[kChunkSize]);
+    esp_ota_handle_t handle = 0;
+    if (!chunk || esp_ota_begin(target, OTA_WITH_SEQUENTIAL_WRITES, &handle) != ESP_OK) {
+        return json_error(request, "500 Internal Server Error", "{\"error\":\"begin\"}");
+    }
+    ESP_LOGI(kLogTag, "Firmware upload started: %u bytes to %s",
+             static_cast<unsigned int>(request->content_len), target->label);
+
+    std::size_t remaining = request->content_len;
+    int timeouts = 0;
+    while (remaining > 0) {
+        const int received = httpd_req_recv(request, chunk.get(), std::min(remaining, kChunkSize));
+        if (received == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts < 5) {
+            continue;
+        }
+        if (received <= 0 || esp_ota_write(handle, chunk.get(), static_cast<std::size_t>(received)) != ESP_OK) {
+            esp_ota_abort(handle);
+            ESP_LOGW(kLogTag, "Firmware upload aborted with %u bytes remaining", static_cast<unsigned int>(remaining));
+            return json_error(request, "400 Bad Request", "{\"error\":\"transfer\"}");
+        }
+        timeouts = 0;
+        remaining -= static_cast<std::size_t>(received);
+    }
+    if (esp_ota_end(handle) != ESP_OK) {
+        return json_error(request, "422 Unprocessable Content", "{\"error\":\"invalid_image\"}");
+    }
+    esp_app_desc_t uploaded{};
+    if (esp_ota_get_partition_description(target, &uploaded) != ESP_OK ||
+        std::strncmp(uploaded.project_name, esp_app_get_description()->project_name,
+                     sizeof(uploaded.project_name)) != 0) {
+        return json_error(request, "422 Unprocessable Content", "{\"error\":\"wrong_project\"}");
+    }
+    if (esp_ota_set_boot_partition(target) != ESP_OK || !schedule_reboot()) {
+        return json_error(request, "500 Internal Server Error", "{\"error\":\"activate\"}");
+    }
+    uploaded.version[sizeof(uploaded.version) - 1] = '\0';
+    ESP_LOGI(kLogTag, "Firmware %s installed; rebooting", uploaded.version);
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "installed", true);
+    cJSON_AddStringToObject(root, "version", uploaded.version);
+    char* encoded = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    set_security_headers(request);
+    httpd_resp_set_type(request, "application/json");
+    const esp_err_t error = httpd_resp_send(request, encoded != nullptr ? encoded : "{\"installed\":true}",
+                                            HTTPD_RESP_USE_STRLEN);
+    cJSON_free(encoded);
+    return error;
+}
+
 esp_err_t redirect_to_portal(httpd_req_t* request)
 {
     ESP_LOGI(kLogTag, "Captive HTTP probe redirected: %s", request->uri);
@@ -614,6 +682,7 @@ bool start_http_server()
     const httpd_uri_t save{.uri = "/api/config/save", .method = HTTP_POST, .handler = save_handler, .user_ctx = nullptr};
     const httpd_uri_t clear_pairing{.uri = "/api/pairing/clear", .method = HTTP_POST, .handler = clear_pairing_handler, .user_ctx = nullptr};
     const httpd_uri_t factory_reset{.uri = "/api/factory-reset", .method = HTTP_POST, .handler = factory_reset_handler, .user_ctx = nullptr};
+    const httpd_uri_t firmware{.uri = "/api/firmware", .method = HTTP_POST, .handler = firmware_handler, .user_ctx = nullptr};
     const std::array<const char*, 6> captive_paths{
         "/generate_204", "/gen_204", "/hotspot-detect.html", "/connecttest.txt", "/ncsi.txt", "/redirect"};
     if (httpd_register_uri_handler(http_server, &root) != ESP_OK ||
@@ -624,7 +693,8 @@ bool start_http_server()
         httpd_register_uri_handler(http_server, &stage) != ESP_OK ||
         httpd_register_uri_handler(http_server, &save) != ESP_OK ||
         httpd_register_uri_handler(http_server, &clear_pairing) != ESP_OK ||
-        httpd_register_uri_handler(http_server, &factory_reset) != ESP_OK) {
+        httpd_register_uri_handler(http_server, &factory_reset) != ESP_OK ||
+        httpd_register_uri_handler(http_server, &firmware) != ESP_OK) {
         return false;
     }
     for (const char* path : captive_paths) {

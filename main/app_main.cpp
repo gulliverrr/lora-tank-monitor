@@ -16,6 +16,7 @@
 
 #include "esp_chip_info.h"
 #include "esp_log.h"
+#include "esp_ota_ops.h"
 #include "esp_random.h"
 #include "esp_sleep.h"
 #include "esp_system.h"
@@ -445,6 +446,8 @@ extern "C" void app_main()
             ESP_LOGE(kLogTag, "Provisioning transport failed to start");
         }
     }
+    // Reaching here confirms a freshly installed image; a crash before this makes the bootloader roll back.
+    static_cast<void>(esp_ota_mark_app_valid_cancel_rollback());
     if (!provisioning_requested &&
         configuration.device.role == tank_monitor::config::DeviceRole::Transmitter) {
         while (!tank_monitor::display::diagnostics_idle_timeout_elapsed()) {
