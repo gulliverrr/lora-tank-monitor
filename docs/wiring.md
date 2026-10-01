@@ -49,10 +49,11 @@ firmware requests the AXP2101 charging LED off, but some board revisions wire
 the indicator directly to charger status; in that case it follows charging
 state and cannot be gated by an ESP32 GPIO without a hardware modification.
 
-For a one-shot bench measurement, power the sensor, hold the T-Beam middle
-button, and reset the board. The firmware emits one 12 microsecond trigger and
-waits at most 40 milliseconds for ECHO. Normal boot leaves GPIO13 and GPIO25
-unconfigured and does not trigger the sensor.
+On every TX boot the firmware drives GPIO14 high, waits the sensor warm-up,
+emits one 12 microsecond trigger, and waits at most 40 milliseconds for ECHO.
+While the OLED diagnostics are on, holding the middle button for 1.5 seconds
+triggers another measurement. Holding the button during reset enters
+provisioning instead and does not trigger the sensor.
 
 Test across the minimum and expected operating distances. Record startup and
 active current, divider output voltage, timeouts, and measured distance. The

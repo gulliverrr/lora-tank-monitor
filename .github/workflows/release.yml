@@ -24,16 +24,14 @@ jobs:
           grep -q "PROJECT_VER \"${version}\"" CMakeLists.txt
           idf.py set-target esp32
           idf.py build
-          idf.py merge-bin -o lora_tank_monitor-full.bin
 
       - name: Package assets
         shell: bash
         run: |
           mkdir dist
           cp build/lora_tank_monitor.bin dist/
-          cp build/lora_tank_monitor-full.bin dist/
           cd dist
-          sha256sum lora_tank_monitor.bin lora_tank_monitor-full.bin > SHA256SUMS
+          sha256sum lora_tank_monitor.bin > SHA256SUMS
           size=$(stat -c %s lora_tank_monitor.bin)
           sha=$(sha256sum lora_tank_monitor.bin | cut -d' ' -f1)
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/lora_tank_monitor.bin"
@@ -47,9 +45,7 @@ jobs:
           generate_release_notes: true
           files: |
             dist/lora_tank_monitor.bin
-            dist/lora_tank_monitor-full.bin
             dist/SHA256SUMS
             dist/manifest.json
           body: |
-            - `lora_tank_monitor.bin`: upload this from the device's provisioning page (Firmware section).
-            - `lora_tank_monitor-full.bin`: complete image for a first USB flash at offset `0x0`.
+            Upload `lora_tank_monitor.bin` from the device's provisioning page (Firmware section).

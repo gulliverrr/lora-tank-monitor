@@ -14,20 +14,17 @@ on an OLED.
 ## Project status
 
 The project is under staged development. It currently provides the bootable
-foundation, host-tested configuration validation, tank conversion, alarms,
+foundation, host-tested configuration validation, tank conversion,
 versioned LoRa packets, AJ-SR04M measurements, and atomic dual-slot NVS
 persistence. The confirmed T-Beam V1.2 board layer provides I2C/button
 diagnostics, AXP2101 battery and rail telemetry, and an SSD1306 boot status
-screen. Missing configuration starts a portal with Wi-Fi scanning, complete
-forms, atomic save/reboot, button-held re-entry, redacted prefill, and confirmed
-factory reset. A RadioLib-backed SX1278 manager now applies persistent radio
+screen. Missing configuration starts in provisioning mode via a portal over Wi-Fi.
+A RadioLib-backed SX1278 manager now applies persistent radio
 settings and performs a one-shot role-aware discovery status exchange.
 
 The target is a LilyGO TTGO T-Beam ESP32 board with an AXP2101 PMU and a
 433 MHz SX127x radio. LilyGO documentation associates 433 MHz variants with
-SX1278, while the original hardware description specifies SX1276. Board and
-radio drivers will be selected only after the exact PCB and radio markings are
-confirmed.
+SX1278, while the original hardware description specifies SX1276.
 
 ## Requirements
 
@@ -64,10 +61,10 @@ until the board is confirmed to be the intended ESP32 T-Beam variant.
 
 ```bash
 source ~/esp/esp-idf-v5.5/export.sh
-idf.py -p /dev/ttyUSB0 flash monitor
+idf.py -p /dev/ttyACM0 flash monitor
 ```
 
-Replace `/dev/ttyUSB0` with the detected serial port. Exit the monitor with
+Replace `/dev/ttyACM0` with the detected serial port. Exit the monitor with
 `Ctrl+]`.
 
 Expected application log messages include:
@@ -87,6 +84,36 @@ cmake -S test/host -B build/host-tests -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/host-tests
 ctest --test-dir build/host-tests --output-on-failure
 ```
+
+## Releasing firmware
+
+The firmware version lives in `PROJECT_VER` in the top-level `CMakeLists.txt`
+(without a `v` prefix). It is shown on the OLED top line and in the portal's
+Firmware section. Local USB builds use this value as-is.
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which overwrites
+`PROJECT_VER` with the tag name (minus the `v`) for that build and publishes
+`lora_tank_monitor.bin`, `SHA256SUMS`, and `manifest.json` as a GitHub release.
+Keep the code and the tag in sync so USB-flashed and released builds report
+the same version.
+
+```bash
+git tag -l 'v*' --sort=-v:refname | head -1   # show the latest version
+# edit CMakeLists.txt: set(PROJECT_VER "1.0.1")
+git commit -am "Release 1.0.1"
+git push                        # push the commits first
+git tag v1.0.1                  # same number as PROJECT_VER, with a v prefix
+git push origin v1.0.1
+```
+
+Tags containing `-` (for example `v0.2.0-beta1`) are published as
+pre-releases and are skipped by the portal's "Download latest release" link.
+Watch progress under the repository's Actions tab.
+
+To install, download `lora_tank_monitor.bin` on a phone, start provisioning
+mode on the device (hold the button during reset), join its hotspot, and use
+the Firmware section of the portal. A board flashed with an older single-slot
+partition table must be flashed once over USB before portal updates work.
 
 ## Configuration and security
 

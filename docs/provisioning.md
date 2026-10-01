@@ -15,9 +15,12 @@ A wildcard DNS service resolves requested host names to the device and common
 Android, Apple, Windows, and ChromeOS captive-network probes redirect to the
 portal. Some phones may still require manually opening `192.168.4.1`.
 
-The portal supports asynchronous Wi-Fi rescanning and staged forms for
-device role, Wi-Fi, LoRa, tank/calibration, sensor timing, alarms, battery, and
-Blynk settings. Submissions are URL-decoded into a temporary bounded
+The portal supports asynchronous Wi-Fi rescanning and staged forms for the
+device role (Tank or Gateway), LoRa radio, and role-specific settings. TX shows
+tank details: sensor-to-bottom and sensor-to-max-surface distances, full
+capacity, display unit, out-of-range policy, and measurement interval. RX shows
+Wi-Fi, Blynk, and Pairing. Sensor timing, alarms, battery estimation, and OLED
+behavior are fixed by firmware. Submissions are URL-decoded into a temporary bounded
 configuration and pass the same cross-field validator used at boot. A valid
 stage enables **Save and reboot**. Saving uses the verified dual-slot NVS
 transaction, replies to the browser, then reboots.
@@ -38,6 +41,24 @@ trusted physical environment. The final operational flow disables the AP after
 a valid configuration is saved and requires a deliberate local action to
 re-enter provisioning.
 
+## Firmware update
+
+The collapsed **Firmware** section, shown for both roles, displays the
+installed version and links to the project's GitHub releases. Download
+`lora_tank_monitor.bin` before joining the device's AP, because the AP has no
+internet access, then select it and choose **Upload and install**.
+
+The upload requires the session token, is limited to the inactive OTA slot
+size, and is written to that slot only. Firmware rejects images that fail ESP
+image validation or belong to a different project, then switches the boot slot
+and reboots. Saved configuration is untouched. If the new image crashes before
+completing boot, the bootloader rolls back to the previous image on the next
+reset. The portal does not compare versions, so the same or an older release
+can be reinstalled deliberately.
+
+Boards flashed before the two-slot OTA partition layout must be flashed once
+over USB before portal updates work.
+
 ## Transport verification
 
 1. Confirm the OLED shows `PROVISIONING`, the AP name, and `192.168.4.1`.
@@ -56,10 +77,13 @@ re-enter provisioning.
 
 ```text
 config_store: Loaded slot 0 generation 1
-Persistent configuration is valid: generation=1 role=1 tank=Tank 1
+Persistent configuration is valid: generation=1 role=1 tank=Tank
 ```
 
 11. Hold the middle button while resetting, reconnect to the AP, and confirm
    saved nonsecret values are prefilled while password/token fields are blank.
 12. Use **Factory reset**, confirm the destructive prompt, and verify reboot
    returns to an unconfigured provisioning state without erasing firmware.
+13. Open **Firmware**, confirm the installed version matches the OLED, upload a
+   release `.bin`, and confirm the device reboots into the new version with its
+   configuration intact.

@@ -22,15 +22,16 @@ it never transmits an in-memory C++ structure.
 
 The payload contains fields encoded as one-byte tag, one-byte length, and the
 value. Known measurement tags currently cover distance in centimetres, level in
-centimetres, percentage in basis points, volume in litres, battery in
-millivolts, sensor status, and alarm flags. Unknown well-formed tags are skipped
-so minor firmware additions remain compatible.
+centimetres, percentage in basis points, volume in display units, the volume
+unit, battery in millivolts, sensor status, and alarm flags. Unknown well-formed
+tags are skipped so minor firmware additions remain compatible.
 
 The current TX checkpoint includes battery millivolts and sensor status in every
 measurement. When the echo and tank details are valid, it also includes raw
 distance in whole centimetres, calibrated water level in whole centimetres,
-fill percentage in basis points (`6834` is `68.34%`), and calculated volume in
-whole litres.
+fill percentage in basis points (`6834` is `68.34%`), calculated volume in
+whole display units, and the display unit (litres, US gallons, or imperial
+gallons).
 
 A four-byte IEEE CRC32 follows the payload. This supplements the radio PHY CRC
 and detects application framing errors. It is not cryptographic authentication.
@@ -49,4 +50,12 @@ does not wait for a receiver, acknowledgement, or pairing state. RX continuously
 rearms its receive operation and processes a valid packet whenever TX wakes.
 
 Identity-only pairing does not prevent spoofing or replay by an attacker with a
-compatible radio. Cryptographic packet authentication is outside version 1.
+compatible radio. Cryptographic packet authentication is not part of protocol
+version 2.
+
+## Compatibility
+
+Version 2 removed the version 1 tank ID header field. Decoders accept only
+their own protocol version, so TX and RX must run firmware with the same
+protocol version. TX can only be updated on site, so RX firmware delivered
+remotely must keep accepting the protocol version deployed TX boards send.

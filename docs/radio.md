@@ -33,18 +33,19 @@ On valid operational boot, firmware resets and identifies the SX1278, applies
 settings, and reads the version register. Accepted version values are `0x11`,
 `0x12`, and `0x13`.
 
-The current link checkpoint then performs one role-aware operation:
+On each boot the radio performs one role-aware operation:
 
-- TX broadcasts one protocol `Status` discovery frame containing battery
-	millivolts, then waits for a matching acknowledgement and retries according
-	to its configured transmission-retry count before returning the radio to
-	sleep.
+- TX powers the sensor, measures once, broadcasts one protocol `Measurement`
+	frame, and returns to deep sleep for the configured measurement interval. It
+	does not wait for an acknowledgement and does not retry. While the OLED
+	diagnostics are on, holding the button for 1.5 seconds measures and
+	transmits again.
 - RX listens for one configured receive-timeout period, validates application
 	framing, receiver identity, and saved sender pairing, logs
 	link metrics, then immediately rearms reception. RX is mains-powered and
 	listens continuously; the configured timeout only bounds each internal radio
 	receive cycle and does not require synchronized board resets.
 
-This checkpoint does not yet perform measurements, pairing, acknowledgements,
-retries, periodic scheduling, or deep sleep. Frequency, power, and duty cycle
-remain the installer's regulatory responsibility.
+The stored transmission-retry count is validated but not currently used.
+Frequency, power, and duty cycle remain the installer's regulatory
+responsibility.

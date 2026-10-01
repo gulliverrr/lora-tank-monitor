@@ -51,9 +51,16 @@ percentage = 100 * (surface_position - empty_level) / (full_level - empty_level)
 
 Physical sensor-range failures are always rejected. Readings outside the
 calibrated empty/full range are either rejected or clamped according to the
-configured policy. Volume uses either capacity-scaled percentage or a linear
+configured policy; `Clamp` and `Report` both clamp the percentage. Volume uses
+either capacity-scaled percentage or a linear
 litres-per-centimetre factor, then converts to litres, US gallons, or imperial
 gallons for display.
+
+The installer portal derives geometry from two measurements. Sensor-to-bottom
+sets the reference height and maximum sensor distance with an empty level of
+zero; sensor-to-max-surface sets the minimum sensor distance, and the full
+level is their difference. The portal always uses the capacity-scaled volume
+model with no sensor offset.
 
 On TX measurement boot, firmware waits a fixed sensor power warm-up before
 issuing the AJ-SR04M trigger pulse.
