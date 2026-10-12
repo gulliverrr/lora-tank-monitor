@@ -44,6 +44,7 @@ private:
     portMUX_TYPE telemetry_lock_ = portMUX_INITIALIZER_UNLOCKED;
     EventGroupHandle_t events_{nullptr};
     std::uint32_t telemetry_generation_{0};
+    std::int64_t last_telemetry_time_us_{0};
     Health health_{};
     bool started_{false};
 };

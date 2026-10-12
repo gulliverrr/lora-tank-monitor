@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_tls.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/task.h"
 #include "lwip/inet.h"
@@ -26,6 +27,7 @@ constexpr std::uint8_t kHardware = 20;
 constexpr std::uint8_t kLogin = 29;
 constexpr std::uint16_t kSuccess = 200;
 constexpr std::uint32_t kHeartbeatMilliseconds = 40'000;
+constexpr std::int64_t kRxHeartbeatIntervalUs = 30LL * 60 * 1'000'000;
 
 struct Header {
     std::uint8_t type{0};
@@ -135,9 +137,11 @@ bool BlynkManager::start(const config::WifiConfig& wifi, const config::BlynkConf
 
 void BlynkManager::publish(const Telemetry& telemetry)
 {
+    const std::int64_t received_time_us = esp_timer_get_time();
     portENTER_CRITICAL(&telemetry_lock_);
     telemetry_ = telemetry;
     ++telemetry_generation_;
+    last_telemetry_time_us_ = received_time_us;
     portEXIT_CRITICAL(&telemetry_lock_);
 }
 
@@ -176,6 +180,7 @@ void BlynkManager::task_entry(void* argument)
 
 void BlynkManager::run()
 {
+    std::uint32_t published_generation = 0;
     while (true) {
         xEventGroupWaitBits(events_, kWifiConnected, pdFALSE, pdTRUE, portMAX_DELAY);
         ESP_LOGI(kLogTag, "Wi-Fi connected; opening Blynk TLS session");
@@ -206,14 +211,17 @@ void BlynkManager::run()
             ESP_LOGI(kLogTag, "Blynk virtual-pin mappings active: %u", static_cast<unsigned int>(mapped_pins));
         }
         std::uint16_t message_id = 1;
-        std::uint32_t published_generation = 0;
+        bool heartbeat_sent = false;
+        std::int64_t last_heartbeat_time_us = 0;
         TickType_t last_ping = xTaskGetTickCount();
         while ((xEventGroupGetBits(events_) & kWifiConnected) != 0) {
             Telemetry telemetry{};
             std::uint32_t generation = 0;
+            std::int64_t received_time_us = 0;
             portENTER_CRITICAL(&telemetry_lock_);
             telemetry = telemetry_;
             generation = telemetry_generation_;
+            received_time_us = last_telemetry_time_us_;
             portEXIT_CRITICAL(&telemetry_lock_);
             if (generation != 0 && generation != published_generation) {
                 std::array<char, 80> value{};
@@ -251,9 +259,31 @@ void BlynkManager::run()
                 std::snprintf(value.data(), value.size(), "sensor=%u battery=%.2fV",
                               telemetry.sensor_status, battery_volts);
                 if (!publish(7, value.data())) break;
-                if (!publish(8, "wifi=online blynk=online")) break;
                 published_generation = generation;
                 if (mapped_pins > 0) ESP_LOGI(kLogTag, "Blynk telemetry batch sent");
+            }
+            const std::int64_t now_us = esp_timer_get_time();
+            if (!heartbeat_sent || now_us - last_heartbeat_time_us >= kRxHeartbeatIntervalUs) {
+                std::array<char, 80> heartbeat{};
+                std::array<char, 24> tx_age{};
+                if (generation == 0) {
+                    std::snprintf(tx_age.data(), tx_age.size(), "unknown");
+                } else {
+                    std::snprintf(tx_age.data(), tx_age.size(), "%llum",
+                                  static_cast<unsigned long long>((now_us - received_time_us) / 60'000'000));
+                }
+                std::snprintf(heartbeat.data(), heartbeat.size(),
+                              "wifi=online blynk=online uptime=%llum tx_age=%s",
+                              static_cast<unsigned long long>(now_us / 60'000'000), tx_age.data());
+                if (!publish_value(tls, message_id, pin_for(configuration_, 8), heartbeat.data())) {
+                    ESP_LOGW(kLogTag, "Blynk RX heartbeat publish failed");
+                    break;
+                }
+                heartbeat_sent = true;
+                last_heartbeat_time_us = now_us;
+                if (pin_for(configuration_, 8) >= 0) {
+                    ESP_LOGI(kLogTag, "Blynk RX heartbeat sent: %s", heartbeat.data());
+                }
             }
             if (xTaskGetTickCount() - last_ping >= pdMS_TO_TICKS(kHeartbeatMilliseconds)) {
                 if (!send_command(tls, kPing, ++message_id, nullptr, 0)) break;
